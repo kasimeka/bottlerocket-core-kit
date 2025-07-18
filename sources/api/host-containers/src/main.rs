@@ -233,10 +233,17 @@ where
 }
 
 /// Write out the EnvironmentFile that systemd uses to fill in arguments to host-ctr
-fn write_env_file<S1, S2>(name: S1, source: S2, enabled: bool, superpowered: bool) -> Result<()>
+fn write_env_file<S1, S2, S3>(
+    name: S1,
+    source: S2,
+    enabled: bool,
+    superpowered: bool,
+    command: S3,
+) -> Result<()>
 where
     S1: AsRef<str>,
     S2: AsRef<str>,
+    S3: AsRef<str>,
 {
     let name = name.as_ref();
     let filename = format!("{name}.env");
@@ -246,6 +253,8 @@ where
     writeln!(output, "CTR_SUPERPOWERED={superpowered}")
         .context(error::EnvFileBuildFailedSnafu { name })?;
     writeln!(output, "CTR_SOURCE={}", source.as_ref())
+        .context(error::EnvFileBuildFailedSnafu { name })?;
+    writeln!(output, "CTR_COMMAND={}", command.as_ref())
         .context(error::EnvFileBuildFailedSnafu { name })?;
 
     writeln!(
@@ -360,7 +369,13 @@ where
 
     // Write the environment file needed for the systemd service to have details about this
     // specific host container
-    write_env_file(name, source, enabled, superpowered)?;
+    write_env_file(
+        name,
+        source,
+        enabled,
+        superpowered,
+        image_details.command.join(","),
+    )?;
 
     // Now start/stop the container according to the 'enabled' setting
     let unit_name = format!("host-containers@{name}.service");
@@ -501,6 +516,7 @@ mod test {
         enabled = true
         superpowered = true
         user-data = "Zm9vCg=="
+        command = ["sh", "-c", "echo hello"]
         "#;
 
         let temp_dir = tempfile::TempDir::new().unwrap();
@@ -517,6 +533,7 @@ mod test {
                 enabled: Some(true),
                 superpowered: Some(true),
                 user_data: Some(ValidBase64::try_from("Zm9vCg==").unwrap()),
+                command: ["sh", "-c", "echo hello"].map(String::from).into(),
             },
         );
 

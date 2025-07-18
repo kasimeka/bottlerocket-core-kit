@@ -106,6 +106,8 @@ struct BootstrapContainer {
     user_data: Option<ValidBase64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     essential: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    command: Vec<String>,
 }
 
 /// Stores user-supplied global arguments
@@ -299,7 +301,13 @@ where
 
     // Write the environment file needed for the systemd service to have details
     // this specific bootstrap container
-    write_config_files(name, source, &mode, essential)?;
+    write_config_files(
+        name,
+        source,
+        &mode,
+        essential,
+        container_details.command.join(","),
+    )?;
 
     if mode == "off" {
         // If mode is 'off', disable the container, and clean up any left over tasks
@@ -343,11 +351,18 @@ where
 }
 
 /// Write out the EnvironmentFile that systemd uses to fill in arguments to host-ctr
-fn write_config_files<S1, S2, S3>(name: S1, source: S2, mode: S3, essential: bool) -> Result<()>
+fn write_config_files<S1, S2, S3, S4>(
+    name: S1,
+    source: S2,
+    mode: S3,
+    essential: bool,
+    command: S4,
+) -> Result<()>
 where
     S1: AsRef<str>,
     S2: AsRef<str>,
     S3: AsRef<str>,
+    S4: AsRef<str>,
 {
     let name = name.as_ref();
 
@@ -362,6 +377,11 @@ where
         },
     )?;
     writeln!(output, "CTR_MODE={}", mode.as_ref()).context(
+        error::WriteConfigurationValueSnafu {
+            value: mode.as_ref(),
+        },
+    )?;
+    writeln!(output, "CTR_COMMAND={}", command.as_ref()).context(
         error::WriteConfigurationValueSnafu {
             value: mode.as_ref(),
         },
