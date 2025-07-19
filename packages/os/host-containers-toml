@@ -1,6 +1,6 @@
 [required-extensions]
 host-containers = "v1"
-std = { version = "v1", helpers = ["if_not_null"]}
+std = { version = "v1", helpers = ["if_not_null", "toml_encode"]}
 +++
 {{#if_not_null settings.host-containers}}
 {{#each settings.host-containers}}
@@ -18,11 +18,7 @@ superpowered = {{this.superpowered}}
 user-data = "{{{this.user-data}}}"
 {{/if_not_null}}
 {{#if_not_null this.command}}
-command = [
-{{#each this.command}}
-  "{{{this}}}",
-{{/each}}
-]
+command = {{ toml_encode this.command }}
 {{/if_not_null}}
 {{/each}}
 {{/if_not_null}}
