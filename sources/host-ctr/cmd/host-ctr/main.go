@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -172,15 +173,15 @@ func App() *cli.App {
 				},
 				&cli.StringFlag{
 					Name:        "command",
-					Usage:       "a comma separated list of commands and arguments to run as the container's entrypoint",
+					Usage:       "a JSON array of commands and arguments to run as the container's entrypoint",
 					Destination: &command,
-					Value:       "",
+					Value:       "[]",
 				},
 			},
 			Action: func(_ *cli.Context) error {
-				commandParts := []string{}
-				if command != "" {
-					commandParts = strings.Split(command, ",")
+				var commandParts []string
+				if err := json.Unmarshal([]byte(command), &commandParts); err != nil {
+					return fmt.Errorf("failed to parse entrypoint command: %w", err)
 				}
 				return runCtr(
 					containerdSocket,

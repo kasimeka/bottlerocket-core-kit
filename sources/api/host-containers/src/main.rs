@@ -113,6 +113,16 @@ mod error {
             name: String,
             source: std::io::Error,
         },
+
+        #[snafu(display(
+            "Failed to serialize container entrypoint command {:?}: {}",
+            command,
+            source
+        ))]
+        SerializeContainerCommand {
+            command: Vec<String>,
+            source: serde_json::Error,
+        },
     }
 }
 
@@ -345,10 +355,15 @@ where
         })?;
     let enabled = image_details.enabled.unwrap_or(false);
     let superpowered = image_details.superpowered.unwrap_or(false);
+    let command = serde_json::to_string(&image_details.command).context(
+        error::SerializeContainerCommandSnafu {
+            command: image_details.command.clone(),
+        },
+    )?;
 
     info!(
-        "Host container '{}' is enabled: {}, superpowered: {}, with source: {}",
-        name, enabled, superpowered, source
+        "Host container '{}' is enabled: {}, superpowered: {}, with source: {}, entrypoint command: {}",
+        name, enabled, superpowered, source, command
     );
 
     // Create the directory regardless if user data was provided for the container
@@ -369,13 +384,7 @@ where
 
     // Write the environment file needed for the systemd service to have details about this
     // specific host container
-    write_env_file(
-        name,
-        source,
-        enabled,
-        superpowered,
-        image_details.command.join(","),
-    )?;
+    write_env_file(name, source, enabled, superpowered, command)?;
 
     // Now start/stop the container according to the 'enabled' setting
     let unit_name = format!("host-containers@{name}.service");
@@ -391,13 +400,13 @@ where
     // We want to ensure the host container is running with its most recent configuration.
     if host_containerd_unit.is_active()? {
         debug!("Cleaning up host container: '{}'", unit_name);
-        command(
+        crate::command(
             constants::HOST_CTR_BIN,
             ["clean-up", "--container-id", name],
         )?;
     }
 
-    let systemd_target = command(constants::SYSTEMCTL_BIN, ["get-default"])?;
+    let systemd_target = crate::command(constants::SYSTEMCTL_BIN, ["get-default"])?;
 
     // What happens next depends on whether the system has finished booting, and whether the
     // host container is enabled.

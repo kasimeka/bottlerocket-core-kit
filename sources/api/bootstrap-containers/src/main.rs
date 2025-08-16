@@ -277,6 +277,11 @@ where
     let mode = container_details.mode.clone().unwrap_or_default();
 
     let essential = container_details.essential.unwrap_or(false);
+    let command = serde_json::to_string(&container_details.command).context(
+        error::SerializeContainerCommandSnafu {
+            command: container_details.command.clone(),
+        },
+    )?;
 
     // Create the directory regardless if user data was provided for the container
     let dir = Path::new(PERSISTENT_STORAGE_DIR).join(name);
@@ -301,13 +306,7 @@ where
 
     // Write the environment file needed for the systemd service to have details
     // this specific bootstrap container
-    write_config_files(
-        name,
-        source,
-        &mode,
-        essential,
-        container_details.command.join(","),
-    )?;
+    write_config_files(name, source, &mode, essential, command)?;
 
     if mode == "off" {
         // If mode is 'off', disable the container, and clean up any left over tasks
@@ -319,7 +318,7 @@ where
 
         if host_containerd_unit.is_active()? {
             debug!("Cleaning up container '{}'", name);
-            command(
+            crate::command(
                 constants::HOST_CTR_BIN,
                 [
                     "clean-up",
@@ -333,7 +332,7 @@ where
 
         // Clean up any left over tasks, before the container is enabled
         if host_containerd_unit.is_active()? && !systemd_unit.is_enabled()? {
-            command(
+            crate::command(
                 constants::HOST_CTR_BIN,
                 [
                     "clean-up",
@@ -679,6 +678,16 @@ mod error {
 
         #[snafu(display("Failed write value '{}': {}", value, source))]
         WriteConfigurationValue { value: String, source: fmt::Error },
+
+        #[snafu(display(
+            "Failed to serialize container entrypoint command {:?}: {}",
+            command,
+            source
+        ))]
+        SerializeContainerCommand {
+            command: Vec<String>,
+            source: serde_json::Error,
+        },
     }
 }
 
