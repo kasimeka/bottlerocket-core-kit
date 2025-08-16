@@ -395,10 +395,13 @@ func runCtr(containerdSocket string, namespace string, containerID string, sourc
 			specOpts = append(specOpts, withSuperpowered())
 		case cType == bootstrap:
 			specOpts = append(specOpts, withBootstrap())
-		case len(command) > 0:
-			specOpts = append(specOpts, oci.WithProcessArgs(command...))
 		default:
 			specOpts = append(specOpts, withDefault())
+		}
+
+		// Override the entrypoint command, regardless of container type or other options
+		if len(command) > 0 {
+			specOpts = append(specOpts, oci.WithProcessArgs(command...))
 		}
 
 		ctrOpts := containerd.WithNewSpec(specOpts...)
